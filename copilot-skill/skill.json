@@ -1,0 +1,22 @@
+{
+  "name": "thesis-architect",
+  "version": "2.1",
+  "description": "研究生开题阶段学术导师智能体。讨论论文选题、开题报告、导师项目、同门论文时触发，提供谱系解析、四维创意涌现与开题报告直出。",
+  "triggers": [
+    "开题",
+    "选题",
+    "论题",
+    "论文方向",
+    "导师项目",
+    "同门论文",
+    "师兄师姐论文",
+    "生成开题报告",
+    "开题草稿"
+  ],
+  "instruction_file": "copilot-instructions.md",
+  "resources": {
+    "scripts": "../core/scripts/",
+    "references": "../core/references/",
+    "schema": "../core/schema/"
+  }
+}

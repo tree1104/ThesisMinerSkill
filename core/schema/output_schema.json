@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ThesisArchitect Output Schema",
+  "description": "ThesisArchitect SKILL 输出数据 Schema，标准化 status/data/error_message 结构",
+  "type": "object",
+  "required": ["status", "data"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["success", "retry", "error"],
+      "description": "执行状态：success（成功）、retry（需重试）、error（错误）"
+    },
+    "data": {
+      "type": "object",
+      "description": "核心结果数据",
+      "properties": {
+        "proposals": {
+          "type": "array",
+          "description": "论题提案列表",
+          "items": {
+            "type": "object",
+            "required": ["title", "problem_awareness", "research_significance", "differentiation", "research_content", "literature_review_outline", "score"],
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "论题标题"
+              },
+              "problem_awareness": {
+                "type": "string",
+                "description": "问题意识/现实痛点"
+              },
+              "research_significance": {
+                "type": "string",
+                "description": "研究意义"
+              },
+              "differentiation": {
+                "type": "string",
+                "description": "差异化/创新点"
+              },
+              "research_content": {
+                "type": "string",
+                "description": "研究内容"
+              },
+              "literature_review_outline": {
+                "type": "string",
+                "description": "文献综述大纲"
+              },
+              "score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10,
+                "description": "自评分（满分10）"
+              }
+            }
+          }
+        }
+      }
+    },
+    "error_message": {
+      "type": "string",
+      "description": "错误信息，status 为 error/retry 时必填"
+    }
+  },
+  "if": {
+    "properties": {
+      "status": {
+        "enum": ["error", "retry"]
+      }
+    },
+    "required": ["status"]
+  },
+  "then": {
+    "required": ["error_message"]
+  }
+}

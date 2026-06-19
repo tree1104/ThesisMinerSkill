@@ -1,0 +1,9 @@
+{
+  "weights": {
+    "feasibility": 0.4,
+    "innovation": 0.3,
+    "lineage_fit": 0.3
+  },
+  "max_score": 10,
+  "filter_threshold": 6
+}

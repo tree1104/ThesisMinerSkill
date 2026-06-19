@@ -1,0 +1,17 @@
+{
+  "name": "thesis-architect",
+  "version": "2.1",
+  "description": "研究生开题智能导师。当用户需要论文选题、开题报告、分析导师项目或同门论文谱系时调用。",
+  "triggers": [
+    "论文选题",
+    "开题报告",
+    "导师项目",
+    "同门论文"
+  ],
+  "instruction_file": "gpt-instructions.md",
+  "resources": {
+    "scripts": "../core/scripts/",
+    "references": "../core/references/",
+    "schema": "../core/schema/"
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ThesisArchitect Input Schema",
+  "description": "ThesisArchitect SKILL 输入数据 Schema，定义学位、谱系、策略等必填字段",
+  "type": "object",
+  "required": ["degree", "lineage"],
+  "properties": {
+    "degree": {
+      "type": "string",
+      "enum": ["master", "phd"],
+      "description": "学位级别：master（硕士）或 phd（博士）"
+    },
+    "lineage": {
+      "type": "object",
+      "description": "学术谱系信息",
+      "properties": {
+        "advisor_projects": {
+          "type": "array",
+          "description": "导师项目列表",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "项目名称"
+              },
+              "objective": {
+                "type": "string",
+                "description": "核心目标"
+              }
+            }
+          }
+        },
+        "peer_papers": {
+          "type": "array",
+          "description": "同门论文列表",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "论文标题"
+              },
+              "method": {
+                "type": "string",
+                "description": "使用方法"
+              },
+              "limitation": {
+                "type": "string",
+                "description": "局限性"
+              }
+            }
+          }
+        },
+        "edge_opportunities": {
+          "type": "array",
+          "description": "边缘探测点列表",
+          "items": {
+            "type": "object",
+            "properties": {
+              "keyword": {
+                "type": "string"
+              },
+              "context": {
+                "type": "string"
+              },
+              "opportunity": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "strategy": {
+      "type": "string",
+      "enum": ["advisor_extension", "peer_inheritance", "cross_domain", "contradiction_driven", "all"],
+      "default": "all",
+      "description": "创意生成策略：导师项目延伸、同门成果继承、跨域联想、矛盾驱动、全部"
+    },
+    "count": {
+      "type": "integer",
+      "default": 3,
+      "minimum": 1,
+      "maximum": 10,
+      "description": "生成提案数量"
+    },
+    "output_format": {
+      "type": "string",
+      "enum": ["dialogue", "file"],
+      "default": "dialogue",
+      "description": "输出格式：对话或文件"
+    }
+  }
+}

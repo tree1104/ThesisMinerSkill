@@ -1,0 +1,18 @@
+{
+  "title": {
+    "max_length": 20,
+    "forbidden_verbs": ["研究", "分析", "探讨", "设计"],
+    "forbidden_pattern": "基于.*的.*研究"
+  },
+  "academic_calendar": {
+    "master_months": 12,
+    "phd_months": 24
+  },
+  "literature_baseline": {
+    "master_papers": 30,
+    "phd_papers": 50
+  },
+  "logical_consistency": {
+    "max_overlap_ratio": 0.7
+  }
+}
