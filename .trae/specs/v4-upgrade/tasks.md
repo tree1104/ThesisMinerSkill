@@ -41,10 +41,10 @@
   - [x] SubTask 7.2: 创建 `Problem.md` 记录升级中遇到的问题与解决思路
   - [x] SubTask 7.3: 修改 `scripts/build-trae-zip.py`（输出文件名改为 thesis-architect-v4.0.zip）
 
-- [ ] Task 8: Git 提交与验证
-  - [ ] SubTask 8.1: `git add` 全部新增与修改产物
-  - [ ] SubTask 8.2: `git commit` 提交信息描述 V4.0 升级
-  - [ ] SubTask 8.3: 验证五阶段闭环流、4 条新规则、I/O Schema V4.0、自测全部通过
+- [x] Task 8: Git 提交与验证
+  - [x] SubTask 8.1: `git add` 全部新增与修改产物
+  - [x] SubTask 8.2: `git commit` 提交信息描述 V4.0 升级
+  - [x] SubTask 8.3: 验证五阶段闭环流、4 条新规则、I/O Schema V4.0、自测全部通过
 
 # Task Dependencies
 - Task 1、2 为资源层基础，须最先完成
