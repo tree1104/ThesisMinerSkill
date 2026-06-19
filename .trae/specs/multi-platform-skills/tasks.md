@@ -37,10 +37,10 @@
   - [x] SubTask 7.2: 覆盖项目概述、文件结构与职责、技术栈、核心机制与架构设计、Skill 接口/调用清单、配置与环境变量、部署与运行、扩展性设计
   - [x] SubTask 7.3: 文件结构树需反映 `claude-skill/`、`openai-skill/`、`cursor-skill/`、`trae-skill/`、`copilot-skill/` 五个独立目录
 
-- [ ] Task 8: 提交 Git 并验证
-  - [ ] SubTask 8.1: `git add` 全部新增产物
-  - [ ] SubTask 8.2: 执行 `git commit`，提交信息描述多平台 Skill 产出
-  - [ ] SubTask 8.3: 验证各 Skill 文件格式合规（frontmatter、目录结构、内容等价性）
+- [x] Task 8: 提交 Git 并验证
+  - [x] SubTask 8.1: `git add` 全部新增产物
+  - [x] SubTask 8.2: 执行 `git commit`，提交信息描述多平台 Skill 产出
+  - [x] SubTask 8.3: 验证各 Skill 文件格式合规（frontmatter、目录结构、内容等价性）
 
 # Task Dependencies
 - Task 2、3、4、5、6 相互独立，可并行执行
