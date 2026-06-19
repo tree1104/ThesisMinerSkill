@@ -75,3 +75,65 @@ def test_standard_output():
     # data 应含 report_markdown 与 report_path
     assert "report_markdown" in result["data"]
     assert "report_path" in result["data"]
+
+
+# ========== V4.0 新增：颗粒度与风格中性化参数测试 ==========
+
+def test_granularity_concise():
+    """测试精简版颗粒度：标题层级不超过 ##（无 ###）"""
+    result = generate_report(SAMPLE_PROPOSAL, granularity="concise", style_neutral=False)
+    assert result["status"] == "success"
+    md = result["data"]["report_markdown"]
+    # 精简版最大标题层级为 2，不应出现 ### 及更深层级
+    assert "###" not in md
+
+
+def test_granularity_standard():
+    """测试标准版颗粒度：与默认行为一致"""
+    result = generate_report(SAMPLE_PROPOSAL, granularity="standard", style_neutral=False)
+    assert result["status"] == "success"
+    md = result["data"]["report_markdown"]
+    # 应包含五大模块
+    assert "选题依据" in md
+    assert "研究内容" in md
+
+
+def test_granularity_detailed():
+    """测试详实版颗粒度：含 #### 级标题或风险矩阵相关内容"""
+    result = generate_report(SAMPLE_PROPOSAL, granularity="detailed", style_neutral=False)
+    assert result["status"] == "success"
+    md = result["data"]["report_markdown"]
+    # 详实版应含 #### 级标题或风险矩阵内容
+    assert ("####" in md) or ("风险矩阵" in md)
+
+
+def test_style_neutral_true():
+    """测试 style_neutral=True：data 含 high_plagiarism_risk_sections 字段"""
+    result = generate_report(SAMPLE_PROPOSAL, granularity="standard", style_neutral=True)
+    assert result["status"] == "success"
+    data = result["data"]
+    # 应含 high_plagiarism_risk_sections 字段（可能为空列表但字段存在）
+    assert "high_plagiarism_risk_sections" in data
+    assert isinstance(data["high_plagiarism_risk_sections"], list)
+
+
+def test_style_neutral_false():
+    """测试 style_neutral=False：正常返回（不去 AI 痕迹）"""
+    result = generate_report(SAMPLE_PROPOSAL, granularity="standard", style_neutral=False)
+    assert result["status"] == "success"
+    md = result["data"]["report_markdown"]
+    # 应正常生成报告
+    assert len(md) > 0
+    assert SAMPLE_PROPOSAL["title"] in md
+
+
+def test_backward_compatible():
+    """测试仅传 proposal（不传新参数）与原行为一致"""
+    result = generate_report(SAMPLE_PROPOSAL)
+    assert result["status"] == "success"
+    data = result["data"]
+    # 应含 report_markdown 与 report_path
+    assert "report_markdown" in data
+    assert "report_path" in data
+    # 默认 style_neutral=True，应含 high_plagiarism_risk_sections 字段
+    assert "high_plagiarism_risk_sections" in data

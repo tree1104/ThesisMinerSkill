@@ -11,7 +11,7 @@ import os
 # 将 core/scripts/ 加入 sys.path 以便直接导入脚本模块
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "core", "scripts"))
 
-from constraint_checker import check_and_repair
+from constraint_checker import check_and_repair, check_novelty
 
 
 def test_title_too_long():
@@ -141,3 +141,59 @@ def test_logical_consistency():
     warnings = result["data"]["warnings"]
     # 应有重合度告警
     assert any("WARNING" in w or "重合度" in w for w in warnings)
+
+
+# ========== V4.0 新增：新颖性查重（check_novelty）测试 ==========
+
+def test_check_novelty_default():
+    """测试默认时间窗口下的新颖性查重"""
+    result = check_novelty("医疗大模型微调研究")
+    assert result["status"] == "success"
+    data = result["data"]
+    # 应含 overlap_ratio（0~1 浮点数）
+    assert "overlap_ratio" in data
+    assert isinstance(data["overlap_ratio"], (int, float))
+    assert 0.0 <= data["overlap_ratio"] <= 1.0
+    # 应含 novelty_risk（low/medium/high）
+    assert "novelty_risk" in data
+    assert data["novelty_risk"] in ["low", "medium", "high"]
+    # 应含 novelty_report、differentiation_gap、search_queries
+    assert "novelty_report" in data
+    assert isinstance(data["novelty_report"], str)
+    assert "differentiation_gap" in data
+    assert isinstance(data["differentiation_gap"], str)
+    assert "search_queries" in data
+    assert isinstance(data["search_queries"], list)
+
+
+def test_check_novelty_custom_window():
+    """测试自定义时间窗口 3y"""
+    result = check_novelty("医疗大模型微调研究", time_window="3y")
+    assert result["status"] == "success"
+    data = result["data"]
+    assert "overlap_ratio" in data
+    assert "novelty_risk" in data
+    assert "search_queries" in data
+    assert len(data["search_queries"]) > 0
+
+
+def test_check_novelty_empty_title():
+    """测试空标题返回 status=error"""
+    result = check_novelty("")
+    assert result["status"] == "error"
+    assert result["data"] is None
+    assert result["error_message"] is not None
+
+
+def test_check_novelty_risk_enum():
+    """验证 novelty_risk 值为 low/medium/high 之一"""
+    # 测试多个候选标题，确保风险评级始终在枚举范围内
+    titles = [
+        "医疗大模型微调研究",
+        "基于深度学习的问答系统",
+        "知识图谱构建方法探索"
+    ]
+    for title in titles:
+        result = check_novelty(title)
+        assert result["status"] == "success"
+        assert result["data"]["novelty_risk"] in ["low", "medium", "high"]

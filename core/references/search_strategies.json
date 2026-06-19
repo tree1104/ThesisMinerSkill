@@ -1,0 +1,24 @@
+{
+  "inspiration_search": {
+    "description": "阶段一灵感勘探检索：在四维创意发散前，基于导师关键词与研究方向生成检索式，联网获取近 2 年前沿文献摘要",
+    "default_time_window": "2y",
+    "adjustable_steps": ["1y", "2y", "3y", "5y"],
+    "query_templates": [
+      {"field": "computer_science", "template": "({advisor_keywords}) AND (\"large language model\" OR \"deep learning\") AND (published: 2024..2026)"},
+      {"field": "general", "template": "({advisor_keywords}) AND ({research_area}) AND (published: {start_year}..{end_year})"}
+    ],
+    "result_limit": 5,
+    "boolean_operators": ["AND", "OR", "NOT"]
+  },
+  "novelty_check": {
+    "description": "阶段三重复度评估检索：基于候选论题标题生成查重检索式，联网检索近 5 年硕博论文与期刊，输出重合度与差异化空档",
+    "default_time_window": "5y",
+    "adjustable_steps": ["3y", "5y", "10y"],
+    "query_templates": [
+      {"field": "thesis_title", "template": "({candidate_title_keywords}) AND (thesis OR dissertation) AND (published: {start_year}..{end_year})"},
+      {"field": "journal", "template": "({candidate_title_keywords}) AND (journal OR conference) AND (published: {start_year}..{end_year})"}
+    ],
+    "result_limit": 10,
+    "overlap_threshold": {"low": 0.2, "medium": 0.5, "high": 0.7}
+  }
+}

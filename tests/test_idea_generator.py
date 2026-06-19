@@ -99,3 +99,44 @@ def test_all_strategy():
     # 应包含多种策略
     strategies = {p["strategy"] for p in proposals}
     assert len(strategies) >= 2
+
+
+# ========== V4.0 新增：search_feeds 参数测试 ==========
+
+# 联网检索热点种子语料样例
+SAMPLE_SEARCH_FEEDS = [
+    {
+        "title": "检索增强生成在医疗领域的应用",
+        "abstract": "RAG技术显著提升了医疗问答精度，但是在多轮对话场景下仍存在幻觉局限。",
+        "keywords": ["检索增强生成", "RAG", "知识图谱"]
+    }
+]
+
+
+def test_search_feeds_injection():
+    """测试注入 search_feeds 作为跨域联想种子语料"""
+    result = generate_ideas(SAMPLE_LINEAGE, "cross_domain", "master", search_feeds=SAMPLE_SEARCH_FEEDS)
+    assert result["status"] == "success"
+    proposals = result["data"]["proposals"]
+    # 注入种子语料后应生成非空提案
+    assert len(proposals) >= 1
+    for p in proposals:
+        assert p["strategy"] == "cross_domain"
+
+
+def test_search_feeds_backward_compatible():
+    """测试不传 search_feeds（默认 None）与原行为一致"""
+    result = generate_ideas(SAMPLE_LINEAGE, "cross_domain", "master")
+    assert result["status"] == "success"
+    proposals = result["data"]["proposals"]
+    # 默认 None 时应正常生成提案
+    assert len(proposals) >= 1
+
+
+def test_search_feeds_all_strategy():
+    """测试注入 search_feeds 配合 all 策略多策略生成"""
+    result = generate_ideas(SAMPLE_LINEAGE, "all", "master", search_feeds=SAMPLE_SEARCH_FEEDS)
+    assert result["status"] == "success"
+    proposals = result["data"]["proposals"]
+    # all 策略应生成多个提案
+    assert len(proposals) >= 1

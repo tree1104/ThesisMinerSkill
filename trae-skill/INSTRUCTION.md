@@ -2,41 +2,69 @@
 
 本文件定义 ThesisArchitect Skill 的工作流决策规则、I/O 接口规范、自愈兜底逻辑与 Prompt 约束。所有死知识（约束规则、评分权重、模板）与可执行逻辑均下沉至资源层 `../core/`，按需加载，不在 Skill 激活时全量注入上下文。
 
-## §1 工作流决策规则
+## §1 工作流决策规则（V4.0 五阶段闭环导航流）
 
-当运行时调用 `thesis-architect` 技能时，按以下无状态 6 步流程执行。每一步均引用资源层脚本，禁止凭空生成结构化数据。
+当运行时调用 `thesis-architect` 技能时，按以下五阶段闭环导航流执行。每一步均引用资源层脚本，禁止凭空生成结构化数据。阶段一至阶段五构成闭环，阶段五后禁止结束对话（Rule 10）。
 
-### 步骤 1：I/O 意图识别
-解析用户指令，确定输入源与输出目标：
-- **输入路由**（按优先级）：文件输入（`@input/` 或检测 `/input/profile.json`、`/input/lineage.md`）→ 对话输入 → 混合输入（文件底座 + 对话追加指令）。
-- **输出路由**：用户指令含「保存/生成文件/输出到本地」→ 文件输出（写入 `/output/`）；否则默认对话输出（Markdown 打印）。
+### 阶段一：信息确权与双时域联网勘探
 
-### 步骤 2：上下文加载与谱系解析
-调用 `../core/scripts/lineage_parser.py` 的 `parse_lineage(text)` 函数，将非结构化谱系文本解析为结构化 `LineageGraph`：
-- 实体抽取：导师项目（name、objective）、同门论文（title、method、limitation）。
-- 边缘探测：标记「未来工作/受限于算力/数据未展开」等高价值切入点。
-- 返回标准化输出（见 §2），`data` 含 `advisor_projects`、`peer_papers`、`edge_opportunities` 三数组。
+1. **开题灵感勘探（默认近 2 年）**：
+   - 解析用户初始输入后，**不直接生成论题**。
+   - 读取 `../core/references/search_strategies.json` 的 `inspiration_search` 配置，生成 3~5 组高精度学术检索式（含布尔运算符 AND/OR/NOT），调用联网搜索 API。
+   - **强制中断（Rule 7）**：向用户展示检索结果摘要（Top 5 篇最新文献），提供"时间范围拨盘"（提示："当前默认展示近 2 年前沿动态，可调整为 1 年/3 年/5 年"）。
+   - **Rule 8**：展示时间窗口并提供修改入口，等待用户确认"信息已阅/已确认/继续"后，解锁进入阶段二。严禁未展示检索结果直接输出论题。
+2. **候选论题重复度评估（默认近 5 年）**：在阶段三执行，此处仅声明将在四维创意后进行。
 
-### 步骤 3：四维创意发散
-调用 `../core/scripts/idea_generator.py` 的 `generate_ideas(lineage_graph, strategy, degree)` 函数，按策略生成候选：
-- 四策略：`advisor_extension`（导师项目延伸）、`peer_inheritance`（同门成果继承）、`cross_domain`（跨域联想）、`contradiction_driven`（矛盾驱动）。`strategy="all"` 时四策略并行。
-- 自评分：可行性(40%) + 创新度(30%) + 谱系贴合度(30%)，权重读取自 `../core/references/scoring_weights.json`，过滤低于阈值（默认 6 分）的候选。
-- 返回 Top 3-5 个方向，按分数降序排列。
+### 阶段二：谱系解析与四维创意生成（注入检索热点）
 
-### 步骤 4：结构化精炼
-针对每个候选，调用大模型填充 `title`、`problem_awareness`、`research_significance`、`differentiation`、`research_content`、`literature_review_outline` 字段。Prompt 约束见 §5。
+- 调用 `../core/scripts/lineage_parser.py` 的 `parse_lineage(text)` 解析谱系。
+- 调用 `../core/scripts/idea_generator.py` 的 `generate_ideas(lineage_graph, strategy, degree, search_feeds)` 函数，**强制将阶段一检索到的前沿热点作为 `search_feeds` 参数注入**，作为"跨域联想"与"矛盾驱动"的种子语料。
+- 四策略：advisor_extension / peer_inheritance / cross_domain / contradiction_driven。strategy="all" 时四策略并行。
+- 自评分：可行性(40%) + 创新度(30%) + 谱系贴合度(30%)，权重读取自 `../core/references/scoring_weights.json`，过滤低于 6 分的候选。
+- 输出 Top 3-5 个方向，按分数降序排列。
+- 针对每个候选，调用大模型填充 `title`、`problem_awareness`、`research_significance`、`differentiation`、`research_content`、`literature_review_outline` 字段。文献综述必须以"批判性矩阵"方式组织（问题-方法-不足三栏矩阵），每个研究内容标注"关键科学问题"与"差异化切入点"。
 
-### 步骤 5：硬约束拦截与自动修复
-调用 `../core/scripts/constraint_checker.py` 的 `check_and_repair(proposal)` 函数，对每个提案执行：
-- **标题格式**：≤20 字、禁主动动词开头、禁「基于X的Y研究」模式；超长截取核心名词短语，动词前置自动转名词性短语。
-- **学术日历**：硕士 ≤12 月、博士 ≤24 月；超期注入「分阶段并行执行」降级策略。
-- **文献基线**：硕士 ≥30 篇、博士 ≥50 篇；不足时注入基线要求提示。
-- **逻辑自洽**：研究内容与意义重合度 >70% 标记 `WARNING`。
-- 约束规则读取自 `../core/references/constraints.json`，返回 `repaired_proposal`、`repairs`、`warnings`。
+### 阶段三：重复度评估与硬约束修复
 
-### 步骤 6：多态输出
-- **对话输出**：将结构化提案与开题草稿渲染为 Markdown 打印至对话框。
-- **文件输出**：调用 `../core/scripts/report_generator.py` 的 `generate_report(proposal)` 函数，读取 `../core/references/report_template.md` 模板填充五大模块，写入 `/output/draft_<timestamp>.md`；提案列表写入 `/output/proposals_<timestamp>.json`。回复文件路径摘要。
+1. **重复度评估**：调用 `../core/scripts/constraint_checker.py` 的 `check_novelty(candidate_title, time_window)` 方法，基于候选标题生成查重检索式（读取 `search_strategies.json` 的 `novelty_check` 配置），联网检索近 5 年（可交互调节 3y/5y/10y）硕博论文与期刊。
+   - 输出"新颖性风险评估"：重合度百分比（overlap_ratio）、风险评级（novelty_risk: low/medium/high）、差异化空档说明（differentiation_gap）。
+   - **Rule 8**：检索前展示时间窗口并提供修改入口。
+2. **用户决策**：用户从带查重评估的候选中选择最终 1 个论题进入报告生成。
+3. **硬约束修复**：调用 `../core/scripts/constraint_checker.py` 的 `check_and_repair(proposal)` 函数，执行标题格式（≤20字、禁主动动词开头、禁"基于X的Y研究"）、学术日历（硕士≤12月/博士≤24月）、文献基线（硕士≥30篇/博士≥50篇）、逻辑自洽（重合度≤70%）校验并自动修复。约束规则读取自 `../core/references/constraints.json`。
+
+### 阶段四：多粒度开题生成与降重脱敏
+
+1. **多粒度可控生成**：**强制询问用户**："您需要【精简】、【标准】还是【详实】版的开题报告草稿？"
+   - 读取 `../core/references/output_granularity.yaml` 获取三级颗粒度配置（Markdown 标题深度、列表层级、字数阈值）。
+   - 精简版（concise）：五大模块骨架，仅保留核心结论，Markdown 深度 2。
+   - 标准版（standard）：五大模块 + 每个研究内容配 1 个技术路线子图描述，Markdown 深度 3。
+   - 详实版（detailed）：标准版 + 现状分条详细评述 + 风险矩阵 + 预期成果价值阐述，Markdown 深度 4。
+2. 调用 `../core/scripts/report_generator.py` 的 `generate_report(proposal, granularity, style_neutral)` 函数，按用户选择的粒度渲染报告。报告模板读取自 `../core/references/report_template.md`。
+3. **学术风格中性化（Rule 9）**：`style_normalizer` 的执行优先级高于 `report_generator` 的排版。`generate_report` 的 `style_neutral=True` 时自动调用 `../core/scripts/style_normalizer.py` 的 `remove_ai_traces(text)` 方法，执行：
+   - 禁用词表过滤（读取 `../core/references/forbidden_ai_phrases.json`，替换 200+ AI 化术语为学术中性表达，如"显著提升"→"呈现正向关联"）
+   - 句首禁用词过滤（移除"首先/其次/综上所述"等）
+   - 主动被动态互换（"我们提出"→"本研究提出"）
+   - 输出 Markdown + 局部高重复风险段落标红提醒（high_plagiarism_risk_sections）。
+   - 输出内容若检测到 forbidden_ai_phrases.json 中的词汇，必须替换后方可输出。
+
+### 阶段五：深度辅助与实验映射闭环（Rule 10 后置交互循环）
+
+- 报告输出后，**禁止结束对话**（Rule 10）。系统必须渲染"深度辅助导航菜单"，等待用户选择下一步动作：
+  - **选项 A：文献精读工作簿** → 调用 `../core/scripts/deep_helper.py` 的 `literature_deep_reader(research_status, count=3)` 函数，针对报告中的"国内外研究现状"生成 3 篇标志性文献精读框架（三明治拆解：动机-方法-局限；GAP 分析：与自身课题关键问题的映射；可借鉴图表）。
+  - **选项 B：实验/应用预研映射** → 调用 `../core/scripts/deep_helper.py` 的 `experiment_designer(research_content, discipline)` 函数，按学科类型输出：
+    - 理工/计算机类（stem）：MVE 清单（库版本、核心算法伪代码、基线对比计划）
+    - 数学/理论类（math）：证明路径图谱（前置引理梳理、核心引理构造思路、数值算例验证方案）
+    - 社科/商科类（social）：调研方案设计（问卷量表映射、抽样策略、数据分析模型预设）
+  - **选项 C：答辩模拟（逻辑压力测试）** → 调用 `../core/scripts/deep_helper.py` 的 `thesis_defense_simulator(key_problems, rounds=3)` 函数，AI 扮演严苛盲审专家，针对"关键问题"发起 3 轮苏格拉底式诘问。
+
+### 阻断性规则（Rule 7-10）
+
+以下规则为写死的硬性约束，非建议，必须严格执行：
+
+- **Rule 7（信息确权门禁）**：执行四维创意发散前，必须先完成"联网检索摘要展示"并等待用户明确回复"已确认/继续"。严禁未展示检索结果直接输出论题。
+- **Rule 8（时间窗口交互）**：每次联网检索前，必须向用户展示当前时间窗口（如"近 2 年"），并提供修改入口。
+- **Rule 9（降重与去 AI 化优先级）**：`style_normalizer` 的执行优先级高于 `report_generator` 的排版。输出内容若检测到 `forbidden_ai_phrases.json` 中的词汇，必须替换后方可输出。
+- **Rule 10（后置交互循环）**：报告输出后，禁止结束对话。必须渲染"深度辅助导航菜单"，并等待用户选择下一步动作（文献精读/实验预研/答辩模拟）。
 
 ## §2 I/O 接口规范
 
@@ -46,13 +74,14 @@
 引用 `../core/schema/input_schema.json`，必填字段：
 - `degree`（枚举：`master` / `phd`）：学位级别。
 - `lineage`（对象）：学术谱系，含 `advisor_projects`、`peer_papers`、`edge_opportunities`。
-- 可选：`strategy`（枚举：四策略 + `all`，默认 `all`）、`count`（1-10，默认 3）、`output_format`（`dialogue` / `file`，默认 `dialogue`）。
+- 可选：`strategy`（枚举：四策略 + `all`，默认 `all`）、`count`（1-10，默认 3）、`output_format`（`dialogue` / `file`，默认 `dialogue`）、`output_granularity`（枚举：`concise` / `standard` / `detailed`，默认 `standard`）、`inspiration_time_window`（枚举：`1y` / `2y` / `3y` / `5y`，默认 `2y`）、`novelty_time_window`（枚举：`3y` / `5y` / `10y`，默认 `5y`）。
 
 ### 输出 Schema
 引用 `../core/schema/output_schema.json`，标准化结构：
 - `status`（枚举：`success` / `retry` / `error`）：执行状态。模型据此自主决定继续 / 重试 / 报错。
-- `data`（对象）：核心结果，`proposals` 数组含 `title`、`problem_awareness`、`research_significance`、`differentiation`、`research_content`、`literature_review_outline`、`score` 七字段。
+- `data`（对象）：核心结果，`proposals` 数组含 `title`、`problem_awareness`、`research_significance`、`differentiation`、`research_content`、`literature_review_outline`、`score`、`novelty_risk`（枚举：`low` / `medium` / `high`）、`novelty_report`（字符串）字段；`data` 另含 `high_plagiarism_risk_sections`（字符串数组）。
 - `error_message`（字符串）：`status` 为 `error` 或 `retry` 时必填，描述错误原因。
+- 顶层 `next_actions`（数组）：元素枚举 `literature_deep_reading` / `experiment_design` / `defense_simulation`。
 
 所有脚本函数均返回此三字段结构，模型按 `status` 决策后续动作。
 
@@ -72,8 +101,8 @@
 为管控上下文成本，本 Skill 采用渐进式披露策略：
 
 1. **Skill 激活时**：仅加载元数据层 `SKILL.md` 与指令层 `INSTRUCTION.md` 注入上下文。
-2. **脚本按需加载**：`../core/scripts/` 下的 4 个 Python 脚本不在开场注入；仅当模型确认「需要执行计算」（如解析谱系、生成提案、校验约束、直出报告）时，主动调用对应脚本函数加载执行。
-3. **参考数据按需读取**：`../core/references/` 下的约束规则、评分权重、模板、Prompt 模板由脚本在执行时读取，不进入 Skill 上下文。
+2. **脚本按需加载**：`../core/scripts/` 下的 6 个 Python 脚本不在开场注入；仅当模型确认「需要执行计算」（如解析谱系、生成提案、校验约束、直出报告、去 AI 痕迹、深度辅助）时，主动调用对应脚本函数加载执行。
+3. **参考数据按需读取**：`../core/references/` 下的约束规则、评分权重、模板、Prompt 模板、检索式配置、禁用词表、多粒度配置由脚本在执行时读取，不进入 Skill 上下文。
 
 此机制确保 Skill 激活时上下文成本最小化，死知识与可执行逻辑延迟到真正需要时才加载。
 
@@ -84,4 +113,4 @@
 - **SYSTEM 约束**：严谨学术导师角色；标题 ≤20 字、无主动动词开头、杜绝「基于X的Y研究」套路；必须基于谱系生成严禁捏造；输出严格符合 JSON Schema。
 - **USER 模板**：注入 `{lineage_graph}`、`{strategy}`、`{degree}` 占位符，要求生成含 `title`、`problem_awareness`、`research_significance`、`differentiation`、`research_content`、`literature_review_outline` 六字段的提案。
 
-模型生成后须交由 §1 步骤 5 的 `check_and_repair` 进行硬约束校验与自动修复，确保输出合规。
+模型生成后须交由 §1 阶段三的 `check_and_repair` 进行硬约束校验与自动修复，确保输出合规。

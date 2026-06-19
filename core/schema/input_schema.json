@@ -90,6 +90,24 @@
       "enum": ["dialogue", "file"],
       "default": "dialogue",
       "description": "输出格式：对话或文件"
+    },
+    "output_granularity": {
+      "type": "string",
+      "enum": ["concise", "standard", "detailed"],
+      "default": "standard",
+      "description": "输出颗粒度：concise（精简）、standard（标准）、detailed（详实），适配不同学科对开题报告详细程度的需求"
+    },
+    "inspiration_time_window": {
+      "type": "string",
+      "enum": ["1y", "2y", "3y", "5y"],
+      "default": "2y",
+      "description": "开题灵感勘探时间窗：联网检索前沿文献的时间范围，默认近 2 年"
+    },
+    "novelty_time_window": {
+      "type": "string",
+      "enum": ["3y", "5y", "10y"],
+      "default": "5y",
+      "description": "查重评估时间窗：候选论题重复度评估的联网检索时间范围，默认近 5 年"
     }
   }
 }

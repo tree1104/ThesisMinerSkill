@@ -76,6 +76,128 @@ def _load_constraints():
         return json.load(f)
 
 
+def _load_search_strategies():
+    """读取 search_strategies.json 获取检索策略配置（V4.0 新增）"""
+    strategies_path = os.path.join(REFERENCES_DIR, "search_strategies.json")
+    with open(strategies_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+# ========== 新颖性查重辅助函数（V4.0 新增） ==========
+
+# 高频学术通用词：出现这些词表示研究主题较泛，重合风险高
+_GENERIC_ACADEMIC_TERMS = {
+    "研究", "分析", "应用", "设计", "方法", "基于", "系统", "模型",
+    "算法", "技术", "影响", "关系", "机制", "效果", "评估", "优化",
+    "构建", "实现", "探索", "创新", "改进", "对比", "预测", "识别",
+    "问题", "策略", "框架", "体系", "路径", "视角", "导向", "驱动"
+}
+
+# 标题停用词：提取关键词时需剔除的功能性词汇
+_TITLE_STOPWORDS = {
+    "的", "与", "和", "及", "或", "在", "中", "上", "下", "以", "为",
+    "基于", "面向", "针对", "关于", "通过", "利用", "使用", "采用",
+    "一种", "一个", "这个", "该", "其", "之", "等", "类"
+}
+
+
+def _extract_title_keywords(title):
+    """从候选标题中提取关键词（去除停用词与通用学术词，保留实质性术语）"""
+    if not title:
+        return []
+    # 按非汉字/非字母数字字符切分，保留长度>=2的片段
+    segments = re.split(r'[^\u4e00-\u9fa5a-zA-Z0-9]+', title)
+    keywords = []
+    for seg in segments:
+        seg = seg.strip()
+        if len(seg) < 2:
+            continue
+        if seg in _TITLE_STOPWORDS:
+            continue
+        keywords.append(seg)
+    return keywords
+
+
+def _generate_novelty_query(keywords, time_window, novelty_config):
+    """基于候选标题关键词与时间窗口生成查重检索式"""
+    templates = novelty_config.get("query_templates", [])
+    # 将关键词列表拼接为检索词组
+    keywords_str = " AND ".join(keywords) if keywords else "未指定关键词"
+    # 解析时间窗口为年份范围
+    import datetime
+    current_year = datetime.datetime.now().year
+    years_map = {"1y": 1, "2y": 2, "3y": 3, "5y": 5, "10y": 10}
+    years_back = years_map.get(time_window, 5)
+    start_year = current_year - years_back
+    end_year = current_year
+
+    queries = []
+    for tpl in templates:
+        template_str = tpl.get("template", "")
+        query = template_str.replace("{candidate_title_keywords}", keywords_str)
+        query = query.replace("{start_year}", str(start_year))
+        query = query.replace("{end_year}", str(end_year))
+        queries.append({"field": tpl.get("field", ""), "query": query})
+    return queries
+
+
+def _estimate_overlap_ratio(keywords):
+    """
+    基于标题关键词的通用性估算重合度（无联网检索时的本地启发式估算）。
+    通用学术词占比越高、关键词越少，重合度越高。
+    """
+    if not keywords:
+        return 0.5  # 无法提取关键词，默认中等重合
+    generic_count = sum(1 for kw in keywords if kw in _GENERIC_ACADEMIC_TERMS)
+    # 通用词占比越高，重合度越高
+    generic_ratio = generic_count / len(keywords)
+    # 基础重合度 0.3 + 通用词占比 * 0.5，范围约 [0.3, 0.8]
+    overlap = 0.3 + generic_ratio * 0.5
+    # 关键词越少，重合度越高（短标题更泛化）
+    if len(keywords) <= 2:
+        overlap += 0.1
+    return round(min(overlap, 0.95), 2)
+
+
+def _determine_novelty_risk(overlap_ratio, overlap_threshold):
+    """基于重合度与阈值配置确定风险评级（low/medium/high）"""
+    low_threshold = overlap_threshold.get("low", 0.2)
+    medium_threshold = overlap_threshold.get("medium", 0.5)
+    high_threshold = overlap_threshold.get("high", 0.7)
+    if overlap_ratio < low_threshold:
+        return "low"
+    elif overlap_ratio < medium_threshold:
+        return "medium"
+    else:
+        # 达到或超过 medium 阈值即为 high 风险
+        return "high"
+
+
+def _generate_differentiation_gap(keywords, overlap_ratio, risk, high_threshold):
+    """生成差异化空档说明"""
+    specific_keywords = [kw for kw in keywords if kw not in _GENERIC_ACADEMIC_TERMS]
+    specific_str = "、".join(specific_keywords[:3]) if specific_keywords else "核心术语"
+    if risk == "low":
+        return (
+            f"候选论题与近5年已有研究重合度较低（{overlap_ratio:.0%}），差异化空间充足。"
+            f"建议聚焦「{specific_str}」方向深化，强化独特学术贡献。"
+        )
+    elif risk == "medium":
+        return (
+            f"候选论题与近5年已有研究存在部分重合（{overlap_ratio:.0%}），"
+            f"建议在方法层面寻求差异化：引入新变量或迁移至新场景，"
+            f"强化「{specific_str}」的创新点以区别于已有工作。"
+        )
+    else:
+        severity = "极高" if overlap_ratio >= high_threshold else "较高"
+        return (
+            f"候选论题与近5年已有研究重合度{severity}（{overlap_ratio:.0%}），"
+            f"需显著调整研究方向。建议：1）引入跨学科视角重构问题框架；"
+            f"2）迁移至「{specific_str}」的新应用场景；"
+            f"3）更换核心方法路径以建立实质性差异化。"
+        )
+
+
 # ========== 标题校验与自动修复 ==========
 
 def _repair_title(title, constraints):
@@ -309,6 +431,104 @@ def check_and_repair(proposal: dict) -> dict:
         }
 
 
+# ========== 新颖性查重主函数（V4.0 新增） ==========
+
+@timeout(30)
+def check_novelty(candidate_title: str, time_window: str = "5y") -> dict:
+    """
+    新颖性查重评估主函数（V4.0 新增）。
+    读取 search_strategies.json 的 novelty_check 配置，基于候选标题生成查重检索式，
+    估算重合度并输出风险评级与差异化空档说明。
+
+    参数:
+        candidate_title: 候选论题标题
+        time_window: 查重时间窗口（默认 "5y"，可选 "3y"/"5y"/"10y"）
+
+    返回:
+        标准化输出 dict，data 含：
+        - overlap_ratio：重合度百分比（0~1 浮点数）
+        - novelty_risk：风险评级（low/medium/high）
+        - novelty_report：重合度与风险说明
+        - differentiation_gap：差异化空档说明
+        - search_queries：生成的查重检索式列表
+    """
+    try:
+        if not candidate_title or not isinstance(candidate_title, str):
+            return {
+                "status": "error",
+                "data": None,
+                "error_message": "候选标题为空或非字符串"
+            }
+
+        # 读取检索策略配置
+        strategies = _load_search_strategies()
+        novelty_config = strategies.get("novelty_check", {})
+
+        # 校验时间窗口是否在可调节步长范围内
+        adjustable_steps = novelty_config.get("adjustable_steps", ["3y", "5y", "10y"])
+        if time_window not in adjustable_steps:
+            # 不在步长范围内时降级为默认时间窗口
+            time_window = novelty_config.get("default_time_window", "5y")
+
+        # 从候选标题提取关键词
+        keywords = _extract_title_keywords(candidate_title)
+
+        # 生成查重检索式
+        search_queries = _generate_novelty_query(keywords, time_window, novelty_config)
+
+        # 估算重合度（本地启发式估算）
+        overlap_ratio = _estimate_overlap_ratio(keywords)
+
+        # 基于阈值确定风险评级
+        overlap_threshold = novelty_config.get("overlap_threshold", {"low": 0.2, "medium": 0.5, "high": 0.7})
+        novelty_risk = _determine_novelty_risk(overlap_ratio, overlap_threshold)
+        high_threshold = overlap_threshold.get("high", 0.7)
+
+        # 生成差异化空档说明
+        differentiation_gap = _generate_differentiation_gap(
+            keywords, overlap_ratio, novelty_risk, high_threshold
+        )
+
+        # 生成新颖性报告
+        risk_label_map = {"low": "低风险", "medium": "中风险", "high": "高风险"}
+        novelty_report = (
+            f"候选标题「{candidate_title}」在近{time_window}时间窗口内的查重评估："
+            f"重合度约 {overlap_ratio:.0%}，风险评级为{risk_label_map.get(novelty_risk, novelty_risk)}。"
+            f"已生成 {len(search_queries)} 组查重检索式，建议联网检索后以实际结果校准重合度。"
+        )
+
+        return {
+            "status": "success",
+            "data": {
+                "overlap_ratio": overlap_ratio,
+                "novelty_risk": novelty_risk,
+                "novelty_report": novelty_report,
+                "differentiation_gap": differentiation_gap,
+                "search_queries": search_queries
+            },
+            "error_message": None
+        }
+
+    except FileNotFoundError as e:
+        return {
+            "status": "error",
+            "data": None,
+            "error_message": f"检索策略配置文件缺失：{str(e)}"
+        }
+    except json.JSONDecodeError as e:
+        return {
+            "status": "error",
+            "data": None,
+            "error_message": f"检索策略配置文件格式错误：{str(e)}"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "data": None,
+            "error_message": f"新颖性查重失败：{str(e)}"
+        }
+
+
 # ========== 命令行入口（自测） ==========
 if __name__ == "__main__":
     sample_proposal = {
@@ -320,5 +540,10 @@ if __name__ == "__main__":
         "research_content": "1. 调研医疗问答系统；2. 设计深度学习模型；3. 实验验证。",
         "literature_review_outline": "梳理医疗问答系统相关研究，规划文献 15 篇。"
     }
+    print("===== 硬约束校验测试 =====")
     result = check_and_repair(sample_proposal)
     print(json.dumps(result, ensure_ascii=False, indent=2))
+    # 新颖性查重测试（V4.0 新增）
+    print("\n===== 新颖性查重测试（V4.0）=====")
+    novelty_result = check_novelty("基于深度学习的医疗问答系统研究", "5y")
+    print(json.dumps(novelty_result, ensure_ascii=False, indent=2))

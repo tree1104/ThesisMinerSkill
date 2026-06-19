@@ -1,0 +1,48 @@
+# 开题报告输出颗粒度定义
+# 三级：精简 / 标准 / 详实
+# 由 report_generator.py 读取，依据用户选择的 granularity 动态渲染对应深度模板
+
+concise:
+  description: "精简版：五大模块骨架，仅保留核心结论"
+  markdown_depth: 2  # 最大标题层级（##）
+  list_depth: 1      # 最大列表层级
+  word_thresholds:
+    selection_basis: 200
+    research_status: 300
+    research_content: 400
+    research_scheme: 300
+    schedule: 100
+  include_subsections:
+    technical_route_diagram: false
+    risk_matrix: false
+    expected_outcome: false
+
+standard:
+  description: "标准版：五大模块 + 每个研究内容配 1 个技术路线子图描述"
+  markdown_depth: 3  # 最大标题层级（###）
+  list_depth: 2
+  word_thresholds:
+    selection_basis: 400
+    research_status: 600
+    research_content: 800
+    research_scheme: 600
+    schedule: 200
+  include_subsections:
+    technical_route_diagram: true
+    risk_matrix: false
+    expected_outcome: false
+
+detailed:
+  description: "详实版：标准版 + 现状分条详细评述 + 风险矩阵 + 预期成果价值阐述"
+  markdown_depth: 4  # 最大标题层级（####）
+  list_depth: 3
+  word_thresholds:
+    selection_basis: 800
+    research_status: 1200
+    research_content: 1500
+    research_scheme: 1000
+    schedule: 300
+  include_subsections:
+    technical_route_diagram: true
+    risk_matrix: true
+    expected_outcome: true

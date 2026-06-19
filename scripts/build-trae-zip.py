@@ -5,14 +5,14 @@ ThesisArchitect Skill — TRAE IDE ZIP 打包脚本
 1. 读取 trae-skill/SKILL.md 和 trae-skill/INSTRUCTION.md
 2. 将 ../core/ 引用路径替换为 ./core/（适配 TRAE ZIP 包根目录结构）
 3. 将 core/ 目录原样复制
-4. 打包为 thesis-architect-v2.1.zip
+4. 打包为 thesis-architect-v4.0.zip
 5. 验证 ZIP 结构完整性
 
 用法：
     python scripts/build-trae-zip.py
 
 输出：
-    dist/thesis-architect-v2.1.zip
+    dist/thesis-architect-v4.0.zip
 """
 
 import json
@@ -24,7 +24,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 TRAE_SKILL_DIR = os.path.join(PROJECT_ROOT, "trae-skill")
 CORE_DIR = os.path.join(PROJECT_ROOT, "core")
 DIST_DIR = os.path.join(PROJECT_ROOT, "dist")
-ZIP_NAME = "thesis-architect-v2.1.zip"
+ZIP_NAME = "thesis-architect-v4.0.zip"
 ZIP_PATH = os.path.join(DIST_DIR, ZIP_NAME)
 
 SKILL_SOURCE = os.path.join(TRAE_SKILL_DIR, "SKILL.md")
@@ -77,10 +77,15 @@ def verify_zip(zip_path: str) -> list[str]:
             "core/scripts/idea_generator.py",
             "core/scripts/constraint_checker.py",
             "core/scripts/report_generator.py",
+            "core/scripts/style_normalizer.py",
+            "core/scripts/deep_helper.py",
             "core/references/constraints.json",
             "core/references/scoring_weights.json",
             "core/references/report_template.md",
             "core/references/prompt_templates.json",
+            "core/references/search_strategies.json",
+            "core/references/forbidden_ai_phrases.json",
+            "core/references/output_granularity.yaml",
             "core/schema/input_schema.json",
             "core/schema/output_schema.json",
         ]

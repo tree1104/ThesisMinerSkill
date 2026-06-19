@@ -136,8 +136,60 @@ def _generate_peer_inheritance(lineage_graph, degree):
     return proposals
 
 
-def _generate_cross_domain(lineage_graph, degree):
-    """策略三：跨域联想——识别多个不相关学科概念，生成"A领域方法解B领域问题"候选"""
+# ========== 联网检索热点种子语料提取 ==========
+
+def _extract_search_feeds_keywords(search_feeds):
+    """
+    从联网检索结果中提取关键词作为种子语料。
+    search_feeds 是字典列表，每个字典含 title/abstract/keywords。
+    返回 (methods, domains, contradiction_signals) 三元组：
+      - methods：可迁移的方法/技术关键词
+      - domains：可应用的目标领域关键词
+      - contradiction_signals：含矛盾信号的摘要片段
+    """
+    methods = []
+    domains = []
+    contradiction_signals = []
+    if not search_feeds:
+        return methods, domains, contradiction_signals
+
+    # 矛盾信号关键词：用于矛盾驱动策略识别研究空白
+    contradiction_markers = ["但是", "然而", "局限", "不足", "尚未", "挑战", "瓶颈", "难以", "缺乏"]
+
+    for feed in search_feeds:
+        if not isinstance(feed, dict):
+            continue
+        # 提取 keywords 字段作为可迁移方法
+        keywords = feed.get("keywords", [])
+        if isinstance(keywords, list):
+            for kw in keywords:
+                if kw and isinstance(kw, str) and len(kw) <= 12:
+                    methods.append(kw)
+        elif isinstance(keywords, str) and keywords:
+            methods.append(keywords[:12])
+        # 提取 title 作为目标领域
+        title = feed.get("title", "")
+        if title and isinstance(title, str):
+            domains.append(title[:8])
+        # 提取 abstract 中的矛盾信号
+        abstract = feed.get("abstract", "")
+        if abstract and isinstance(abstract, str):
+            for marker in contradiction_markers:
+                if marker in abstract:
+                    # 截取矛盾信号前后文作为种子
+                    idx = abstract.find(marker)
+                    start = max(0, idx - 10)
+                    end = min(len(abstract), idx + 20)
+                    contradiction_signals.append(abstract[start:end])
+                    break
+
+    return methods, domains, contradiction_signals
+
+
+def _generate_cross_domain(lineage_graph, degree, search_feeds=None):
+    """策略三：跨域联想——识别多个不相关学科概念，生成"A领域方法解B领域问题"候选。
+    当 search_feeds 不为空时，强制注入联网检索热点作为种子语料，扩展跨域候选来源。
+    """
     proposals = []
     # 收集所有方法与领域关键词
     all_methods = []
@@ -153,6 +205,11 @@ def _generate_cross_domain(lineage_graph, degree):
         name = project.get("name", "")
         if name:
             all_domains.append(name[:8])
+
+    # 注入联网检索热点作为种子语料
+    feed_methods, feed_domains, _ = _extract_search_feeds_keywords(search_feeds)
+    all_methods.extend(feed_methods)
+    all_domains.extend(feed_domains)
 
     # 生成跨域候选
     if all_methods and all_domains:
@@ -174,11 +231,35 @@ def _generate_cross_domain(lineage_graph, degree):
             "strategy": "cross_domain"
         }
         proposals.append(proposal)
+
+        # 当存在联网检索热点时，额外生成基于热点的方法迁移候选
+        if feed_methods and len(all_methods) > 1:
+            feed_method = feed_methods[0]
+            lineage_domain = all_domains[0] if all_domains else domain_b
+            if feed_method != method_a:
+                proposal_feed = {
+                    "title": f"{feed_method}在{lineage_domain}中的迁移应用",
+                    "problem_awareness": f"联网检索发现{feed_method}为前沿热点方法，"
+                                         f"而{lineage_domain}领域尚未充分引入该方法，存在迁移潜力。",
+                    "research_significance": f"将前沿热点{feed_method}引入{lineage_domain}领域，"
+                                             f"兼具时效性与跨域创新价值。",
+                    "differentiation": f"基于最新文献热点，将{feed_method}应用于{lineage_domain}，"
+                                       f"区别于传统方法路径。",
+                    "research_content": f"1. 调研{feed_method}的最新进展与适用边界；"
+                                        f"2. 设计面向{lineage_domain}的适配方案；"
+                                        f"3. 实验验证迁移效果。",
+                    "literature_review_outline": f"梳理{feed_method}前沿文献及其在{lineage_domain}的应用空白。",
+                    "strategy": "cross_domain"
+                }
+                proposals.append(proposal_feed)
+
     return proposals
 
 
-def _generate_contradiction_driven(lineage_graph, degree):
-    """策略四：矛盾驱动——检测能力边界与实际需求的语义矛盾，基于矛盾生成论题"""
+def _generate_contradiction_driven(lineage_graph, degree, search_feeds=None):
+    """策略四：矛盾驱动——检测能力边界与实际需求的语义矛盾，基于矛盾生成论题。
+    当 search_feeds 不为空时，强制注入联网检索热点中的矛盾信号作为种子语料。
+    """
     proposals = []
     # 从边缘机会中提取矛盾点
     for opp in lineage_graph.get("edge_opportunities", []):
@@ -201,6 +282,35 @@ def _generate_contradiction_driven(lineage_graph, degree):
                 "strategy": "contradiction_driven"
             }
             proposals.append(proposal)
+
+    # 注入联网检索热点中的矛盾信号作为种子语料
+    _, _, contradiction_signals = _extract_search_feeds_keywords(search_feeds)
+    for signal in contradiction_signals:
+        # 从矛盾信号中提炼矛盾关键词
+        contradiction_kw = ""
+        for marker in ["局限", "不足", "尚未", "瓶颈", "缺乏", "难以"]:
+            if marker in signal:
+                contradiction_kw = marker
+                break
+        if not contradiction_kw:
+            contradiction_kw = "前沿缺口"
+        proposal = {
+            "title": f"针对{contradiction_kw}的改进方法研究",
+            "problem_awareness": f"联网检索发现前沿研究中存在「{signal}」的矛盾，"
+                                 f"现有方法在{contradiction_kw}方面存在能力边界，需设计新方法予以突破。",
+            "research_significance": f"基于最新文献热点识别的{contradiction_kw}矛盾，"
+                                     f"提出针对性解决方案，具备时效性与方法论创新价值。",
+            "differentiation": f"源于联网检索前沿文献的矛盾驱动，"
+                               f"区别于静态谱系分析，确保研究问题的前沿性。",
+            "research_content": f"1. 基于前沿文献形式化定义{contradiction_kw}矛盾；"
+                                f"2. 设计突破{contradiction_kw}限制的新方法；"
+                                f"3. 实验验证方法在矛盾场景下的有效性。",
+            "literature_review_outline": f"调研{contradiction_kw}相关前沿文献的已有解决思路，"
+                                         f"指明现有方法的不足与改进空间。",
+            "strategy": "contradiction_driven"
+        }
+        proposals.append(proposal)
+
     return proposals
 
 
@@ -246,7 +356,7 @@ def _score_proposal(proposal, degree, strategy, weights_config):
 # ========== 主函数（含重试逻辑） ==========
 
 @timeout(30)
-def generate_ideas(lineage_graph: dict, strategy: str, degree: str) -> dict:
+def generate_ideas(lineage_graph: dict, strategy: str, degree: str, search_feeds: list = None) -> dict:
     """
     四维创意涌现引擎主函数。
 
@@ -254,6 +364,8 @@ def generate_ideas(lineage_graph: dict, strategy: str, degree: str) -> dict:
         lineage_graph: 谱系图结构 {"advisor_projects": [...], "peer_papers": [...], "edge_opportunities": [...]}
         strategy: 策略名称（advisor_extension / peer_inheritance / cross_domain / contradiction_driven / all）
         degree: 学位级别（master / phd）
+        search_feeds: 联网检索热点列表（可选，默认 None）。每个元素为含 title/abstract/keywords 的字典。
+                      不为空时，强制注入作为"跨域联想"与"矛盾驱动"的种子语料。
 
     返回:
         标准化输出 dict，data 含 proposals 数组（每个 proposal 含 score）
@@ -268,11 +380,12 @@ def generate_ideas(lineage_graph: dict, strategy: str, degree: str) -> dict:
             filter_threshold = weights_config.get("filter_threshold", 6)
 
             # 根据策略选择生成器
+            # cross_domain 与 contradiction_driven 接受 search_feeds 参数，注入联网检索热点种子语料
             strategy_generators = {
-                "advisor_extension": _generate_advisor_extension,
-                "peer_inheritance": _generate_peer_inheritance,
-                "cross_domain": _generate_cross_domain,
-                "contradiction_driven": _generate_contradiction_driven
+                "advisor_extension": lambda lg, dg: _generate_advisor_extension(lg, dg),
+                "peer_inheritance": lambda lg, dg: _generate_peer_inheritance(lg, dg),
+                "cross_domain": lambda lg, dg: _generate_cross_domain(lg, dg, search_feeds),
+                "contradiction_driven": lambda lg, dg: _generate_contradiction_driven(lg, dg, search_feeds)
             }
 
             all_proposals = []
@@ -353,5 +466,24 @@ if __name__ == "__main__":
             {"keyword": "受限于", "context": "受限于算力仅在单一科室验证", "opportunity": "基于「受限于」的可延伸研究方向"}
         ]
     }
-    result = generate_ideas(sample_graph, "all", "master")
+    # 联网检索热点种子语料（V4.0 新增）
+    sample_feeds = [
+        {
+            "title": "检索增强生成在医疗领域的应用",
+            "abstract": "RAG技术显著提升了医疗问答精度，但是在多轮对话场景下仍存在幻觉局限。",
+            "keywords": ["检索增强生成", "RAG", "知识图谱"]
+        },
+        {
+            "title": "轻量化大模型蒸馏方法",
+            "abstract": "模型蒸馏降低了部署成本，然而在长尾知识上尚未充分覆盖。",
+            "keywords": ["知识蒸馏", "模型压缩"]
+        }
+    ]
+    # 测试向后兼容（不传 search_feeds）
+    print("===== 向后兼容测试（无 search_feeds）=====")
+    result_compat = generate_ideas(sample_graph, "all", "master")
+    print(json.dumps(result_compat, ensure_ascii=False, indent=2))
+    # 测试注入联网检索热点
+    print("\n===== V4.0 测试（注入 search_feeds）=====")
+    result = generate_ideas(sample_graph, "all", "master", search_feeds=sample_feeds)
     print(json.dumps(result, ensure_ascii=False, indent=2))

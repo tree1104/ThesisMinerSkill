@@ -50,8 +50,24 @@
                 "minimum": 0,
                 "maximum": 10,
                 "description": "自评分（满分10）"
+              },
+              "novelty_risk": {
+                "type": "string",
+                "enum": ["low", "medium", "high"],
+                "description": "新颖性风险评级：low（低重合）、medium（中等重合）、high（高重合，需调整）"
+              },
+              "novelty_report": {
+                "type": "string",
+                "description": "新颖性评估报告：说明与已有研究的重合度及差异化空档"
               }
             }
+          }
+        },
+        "high_plagiarism_risk_sections": {
+          "type": "array",
+          "description": "局部高重复风险段落标红提示：列出报告中查重风险较高的段落标识或片段",
+          "items": {
+            "type": "string"
           }
         }
       }
@@ -59,6 +75,14 @@
     "error_message": {
       "type": "string",
       "description": "错误信息，status 为 error/retry 时必填"
+    },
+    "next_actions": {
+      "type": "array",
+      "description": "后置引导菜单：报告输出后供用户选择的下一步动作",
+      "items": {
+        "type": "string",
+        "enum": ["literature_deep_reading", "experiment_design", "defense_simulation"]
+      }
     }
   },
   "if": {
