@@ -27,6 +27,9 @@ env/
 Thumbs.db
 desktop.ini
 
+# 构建产物
+/dist/
+
 # 日志与缓存
 *.log
 .cache/
