@@ -45,11 +45,11 @@
   - [x] SubTask 7.5: 创建 `tests/test_schema.py`（测试 input/output Schema 合法性与样例校验）
   - [x] SubTask 7.6: 运行全部测试，确认通过（28 passed）
 
-- [ ] Task 8: 更新 README.md 与 Git 提交
-  - [ ] SubTask 8.1: 更新根目录 `README.md` 反映三层结构（core/ 目录树、各 Skill 三层拆分）
-  - [ ] SubTask 8.2: `git add` 全部新增与修改产物
-  - [ ] SubTask 8.3: `git commit` 提交信息描述架构重构
-  - [ ] SubTask 8.4: 验证各 Skill 三层结构合规、I/O Schema 合法、自测通过
+- [x] Task 8: 更新 README.md 与 Git 提交
+  - [x] SubTask 8.1: 更新根目录 `README.md` 反映三层结构（core/ 目录树、各 Skill 三层拆分）
+  - [x] SubTask 8.2: `git add` 全部新增与修改产物
+  - [x] SubTask 8.3: `git commit` 提交信息描述架构重构
+  - [x] SubTask 8.4: 验证各 Skill 三层结构合规、I/O Schema 合法、自测通过（28 passed）
 
 # Task Dependencies
 - Task 1 为核心前置依赖，须最先完成（其他 Task 引用 core/）
